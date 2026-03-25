@@ -32,7 +32,7 @@ const BOT_NAME = settings.BotName || "Telegram Bot";
 const OWNER_ID = String(settings.OWNER_ID);
 const OWNER_NAME = "𝙂𝙤𝙙'𝙨 𝙕𝙚𝙖𝙡 †";
 const REQUIRED_GROUP_ID = -1002403372004;
-const REQUIRED_CHANNEL_ID = -1002638323572;
+const REQUIRED_CHANNEL_ID = '@aitoolshub01';
 const OPTIONAL_CHANNEL_GATEWAY = {
     id: -1003694231720,
     label: "channel",
@@ -148,12 +148,21 @@ async function getMissingMemberships(userId) {
     for (const requirement of requirements) {
         try {
             const member = await bot.getChatMember(requirement.id, userId);
-            if (!isMembershipActive(member?.status)) {
+            const status = member?.status;
+            if (status === 'left' || status === 'kicked' || status === 'banned') {
                 missing.push(requirement);
             }
         } catch (err) {
-            console.error(`Membership check failed for ${requirement.label}:`, err?.response?.body || err);
-            unverifiable.push(requirement);
+            const errBody = err?.response?.body;
+            let errMsg = '';
+            try { errMsg = JSON.parse(errBody)?.description || ''; } catch {}
+            const isDefinitelyNotMember = errMsg.includes('member not found') || errMsg.includes('USER_NOT_PARTICIPANT');
+            if (isDefinitelyNotMember) {
+                missing.push(requirement);
+            } else {
+                console.error(`Membership check unverifiable for ${requirement.label}:`, errMsg || err?.message);
+                unverifiable.push(requirement);
+            }
         }
     }
 
@@ -175,29 +184,21 @@ function withMembershipGuard(handler) {
         const missingMemberships = membershipStatus.missing.map((item) => item.name);
         const unverifiableMemberships = membershipStatus.unverifiable.map((item) => item.name);
 
-        if (missingMemberships.length > 0 || unverifiableMemberships.length > 0) {
-            let gateMessage = `Hi ${firstName}, welcome to ${BOT_NAME}.\n\nPlease join the required community before using this bot.`;
-
-            if (missingMemberships.length > 0) {
-                gateMessage += `\n\nNot joined yet: ${missingMemberships.join(", ")}`;
-            }
-
-            if (unverifiableMemberships.length > 0) {
-                gateMessage += `\n\nUnable to verify right now: ${unverifiableMemberships.join(", ")}`;
-                gateMessage += `\nMake sure the bot has been added to the group/channel so it can confirm membership.`;
-            }
+        if (missingMemberships.length > 0) {
+            const gateMessage = `🔒 *Access Required — ${BOT_NAME}*\n\nHi *${firstName}!* 👋\n\nTo use this bot, you must join our community first:\n\n❌ *Not joined yet:* ${missingMemberships.join(", ")}\n\n📌 Click the buttons below to join, then tap *"I've Joined ✅"* to verify.`;
 
             await bot.sendMessage(
                 chatId,
                 gateMessage,
                 {
+                    parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
                             getGatewayRequirements()
                                 .filter((item) => item.link)
-                                .map((item) => ({ text: `Join ${item.name}`, url: item.link })),
+                                .map((item) => ({ text: `🔗 Join ${item.name}`, url: item.link })),
                             [
-                                { text: "I've Joined, Try Again", callback_data: "membership_retry" }
+                                { text: "✅ I've Joined — Verify Now", callback_data: "membership_retry" }
                             ]
                         ]
                     }
@@ -786,33 +787,23 @@ bot.on("callback_query", async (query) => {
 
     const membershipStatus = await getMissingMemberships(userId);
     const missingMemberships = membershipStatus.missing.map((item) => item.name);
-    const unverifiableMemberships = membershipStatus.unverifiable.map((item) => item.name);
 
-    if (missingMemberships.length > 0 || unverifiableMemberships.length > 0) {
-        let retryMessage = "";
-
-        if (missingMemberships.length > 0) {
-            retryMessage += `Still missing: ${missingMemberships.join(", ")}`;
-        }
-
-        if (unverifiableMemberships.length > 0) {
-            retryMessage += `${retryMessage ? "\n" : ""}Still unable to verify: ${unverifiableMemberships.join(", ")}`;
-        }
-
+    if (missingMemberships.length > 0) {
         await bot.answerCallbackQuery(query.id, {
-            text: retryMessage,
+            text: `❌ Still not joined: ${missingMemberships.join(", ")}. Please join and try again!`,
             show_alert: true
         });
         return;
     }
 
     await bot.answerCallbackQuery(query.id, {
-        text: "Membership confirmed."
+        text: "✅ Membership confirmed! Welcome!"
     });
 
     await bot.sendMessage(
         chatId,
-        "Membership confirmed. You can now use /start, /help, /connect, /status, and /linked."
+        `✅ *Welcome to ${BOT_NAME}!*\n\nYou're verified! Use /start, /connect, /status, /help, /linked`,
+        { parse_mode: 'Markdown' }
     );
 });
 
@@ -881,6 +872,36 @@ bot.getMe()
     });
 
 console.log("Telegram bot is running...");
+
+// ==================== KEEPALIVE SERVER ====================
+const http = require('http');
+const KEEPALIVE_PORT = process.env.PORT || 3000;
+
+const keepaliveServer = http.createServer((req, res) => {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        status: 'alive',
+        bot: BOT_NAME,
+        uptime: `${hours}h ${minutes}m ${seconds}s`,
+        timestamp: new Date().toISOString()
+    }));
+});
+
+keepaliveServer.listen(KEEPALIVE_PORT, () => {
+    console.log(`Keepalive server running on port ${KEEPALIVE_PORT}`);
+});
+
+setInterval(() => {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    console.log(`[Heartbeat] ${BOT_NAME} alive — uptime: ${hours}h ${minutes}m`);
+}, 5 * 60 * 1000);
+// ==================== END KEEPALIVE ====================
 
 const file = require.resolve(__filename);
 fs.watchFile(file, () => {

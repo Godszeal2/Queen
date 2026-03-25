@@ -28,3 +28,7 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd telexwa-main && PATH=/nix/store/1lagpgadaybvs1n2312gysg2phjk89y8-nodejs-20.20.0-wrapped/bin:$PATH npm install --prefer-offline 2>&1 | tail -5 && node server.js"
+
+[[ports]]
+localPort = 3000
+externalPort = 80

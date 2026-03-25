@@ -1,81 +1,81 @@
 const chalk = require('chalk')
 const fs = require('fs')
+const os = require('os')
 
-const Menu = `┌ ❏ *⌜ 『 Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑 』 ⌟* ❏
+const _uptime = process.uptime();
+const _hours = Math.floor(_uptime / 3600);
+const _minutes = Math.floor((_uptime % 3600) / 60);
+const _memUsed = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+
+const Menu = `╔══════════════════════════════════╗
+║   👑 *QUEEN ABIMS BOT v2.0.0*    ║
+╚══════════════════════════════════╝
+
+┌ ❏ *⌜ BOT INFO ⌟* ❏
 │
-├◆ ᴏᴡɴᴇʀ: 𝙂𝙤𝙙'𝙨 𝙕𝙚𝙖𝙡 †
-├◆ ᴘʀᴇғɪx: .
-├◆ ᴠᴇʀsɪᴏɴ: 2.0.0
+├◆ 👑 *Owner:* 𝙂𝙤𝙙'𝙨 𝙕𝙚𝙖𝙡 †
+├◆ ⚡ *Prefix:*  .
+├◆ 🌐 *Version:* 2.0.0
+├◆ ⏱️ *Uptime:* ${_hours}h ${_minutes}m
+├◆ 💾 *RAM:* ${_memUsed} MB
+├◆ ✅ *Status:* Online & Active
+├◆ 📊 *Commands:* 52+
+│
 └ ❏
 
-┌ ❏ *⌜ GENERAL COMMANDS ⌟* ❏
-│
-├◆ .menu / .help
-├◆ .ping
-├◆ .alive
-├◆ .owner
-├◆ .dev
-├◆ .joke
-├◆ .quote
-├◆ .fact
-├◆ .jid
-├◆ .repo
-└ ❏
+╔══ 🤖 *AI COMMANDS* [8] ══╗
 
-┌ ❏ *⌜ AI COMMANDS ⌟* ❏
-│
-├◆ .ai <question>
-├◆ .ask <question>
-├◆ .gpt <question>
-├◆ .chatbot on/off (group)
-└ ❏
+├◆ .ai / .ask / .gpt <question>
+├◆ .imagine / .gen <description>
+├◆ .txt2img / .ai2img <prompt>
+├◆ .chatbot on/off (group admin)
 
-┌ ❏ *⌜ GAME COMMANDS ⌟* ❏
-│
+╔══ 📥 *DOWNLOAD* [4] ══╗
+
+├◆ .play <song or URL>   [YT MP3]
+├◆ .ytmp4 <video or URL> [YT MP4]
+├◆ .vv (reply view-once) [reveal]
+├◆ .vv2 (reply + send DM)[reveal+DM]
+
+╔══ 🎮 *GAMES & FUN* [8] ══╗
+
 ├◆ .8ball <question>
-├◆ .truth
-├◆ .dare
-├◆ .flirt
-├◆ .character @user
-└ ❏
+├◆ .truth | .dare
+├◆ .flirt | .character @user
+├◆ .joke | .quote | .fact
 
-┌ ❏ *⌜ ADMIN COMMANDS ⌟* ❏
-│
-├◆ .tagall <message>
-├◆ .chatbot <on/off>
-├◆ .gcstatus <text/reply>
-├◆ .groupinfo
-├◆ .setgname <name>
-├◆ .setgdesc <desc>
-├◆ .setgpp (reply image)
-└ ❏
+╔══ 👥 *GROUP ADMIN* [10] ══╗
 
-┌ ❏ *⌜ MEDIA COMMANDS ⌟* ❏
-│
-├◆ .play <song name or URL>
-├◆ .ytmp4 <link or search>
-└ ❏
+├◆ .tagall <msg> | .groupinfo
+├◆ .gcstatus | .chatbot on/off
+├◆ .setgname | .setgdesc
+├◆ .setgpp | .addaccess | .delaccess
 
-┌ ❏ *⌜ OWNER COMMANDS ⌟* ❏
-│
-├◆ .public
-├◆ .private
+╔══ ⚡ *GENERAL* [9] ══╗
+
+├◆ .alive | .ping | .menu
+├◆ .owner | .dev | .repo
+├◆ .jid | .help
+
+╔══ 🔑 *OWNER ONLY* [5] ══╗
+
+├◆ .public | .private
 ├◆ .autoreact on/off
-├◆ .addaccess <number>
-├◆ .delaccess <number>
-└ ❏
+├◆ .trash | > (eval) | $ (shell)
 
-┌ ❏ *⌜ DEV COMMANDS ⌟* ❏
-│
-├◆ > (eval js)
-├◆ $ (run shell)
-├◆ .trash <number>
-└ ❏
+╔══ 📋 *CATEGORY MENUS* ══╗
 
-┌ ❏ *⌜ JOIN OUR COMMUNITY ⌟* ❏
+├◆ .aimenu — AI commands detail
+├◆ .downloadmenu — Download help
+├◆ .gamemenu — Games & fun
+├◆ .adminmenu — Group admin
+├◆ .generalmenu — General cmds
+├◆ .ownermenu — Owner panel
+
+┌ ❏ *⌜ JOIN COMMUNITY ⌟* ❏
 │
-├◆ 🔗 Channel: ${global.wagc || 'wa.me/channel/queenabimsbot'}
-├◆ 💬 Get updates & support
+├◆ 🔗 Channel: t.me/aitoolshub01
+├◆ 💬 Get updates & bot support
 └ ❏`
 
 module.exports = Menu
