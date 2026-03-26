@@ -6,11 +6,17 @@ let trashplug = async (m, { trashcore, reply }) => {
 ┌ ❏ *⌜ CHAT AI ⌟* ❏
 │
 ├◆ *.ai* <question>
-│  └ Ask AI anything
+│  └ Ask AI (Gemini model)
 ├◆ *.ask* <question>  
-│  └ Same as .ai
+│  └ Ask AI (GPT-4o-Mini)
 ├◆ *.gpt* <question>
-│  └ GPT-4o powered answer
+│  └ GPT-4 powered answer
+├◆ *.gemini* <question>
+│  └ Google Gemini AI
+├◆ *.llama* <question>
+│  └ Meta Llama 3 AI
+├◆ *.mixtral* <question>
+│  └ Mixtral AI model
 │
 └ ❏
 
@@ -35,7 +41,7 @@ let trashplug = async (m, { trashcore, reply }) => {
 │
 └ ❏
 
-📊 *Total AI Commands:* 8
+📊 *Total AI Commands:* 12
 > 🤖 Powered by GPT-4o Mini`;
 
     try {

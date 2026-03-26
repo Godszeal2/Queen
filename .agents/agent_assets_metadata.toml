@@ -6,3 +6,9 @@ id = "j7qm67gdRChO6X-hEwG1M"
 uri = "file://Queen_Abims_Bot.zip"
 type = "unspecified"
 title = "Queen Abims Bot — Fixed & Updated (ZIP)"
+
+[[outputs]]
+id = "pJPKerl__vt8x8S9q723M"
+uri = "file://Queen_Abims_Bot_v2.zip"
+type = "unspecified"
+title = "Queen Abims Bot v2 — All Features + APIs Fixed"

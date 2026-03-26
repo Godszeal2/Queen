@@ -224,37 +224,45 @@ if (m.isGroup && !isCmd) {
                 if (userMsg) {
                     await trashcore.sendPresenceUpdate('composing', from);
                     await sleep(1500);
-                    try {
-                        const ddgRes = await axios.get('https://duckduckgo.com/duckchat/v1/status', {
-                            headers: { 'x-vqd-accept': '1' }, timeout: 8000
-                        });
-                        const token = ddgRes.headers['x-vqd-4'];
-                        if (token) {
-                            const chatRes = await axios.post('https://duckduckgo.com/duckchat/v1/chat', {
-                                model: 'gpt-4o-mini',
-                                messages: [{ role: 'user', content: userMsg }]
-                            }, {
-                                headers: {
-                                    'x-vqd-4': token,
-                                    'Content-Type': 'application/json',
-                                    'User-Agent': 'Mozilla/5.0'
-                                },
-                                timeout: 20000,
-                                responseType: 'text'
-                            });
-                            const raw = typeof chatRes.data === 'string' ? chatRes.data : JSON.stringify(chatRes.data);
-                            let cbAnswer = '';
-                            for (const line of raw.split('\n')) {
-                                if (!line.startsWith('data: ')) continue;
-                                const chunk = line.slice(6).trim();
-                                if (chunk === '[DONE]') break;
-                                try { const obj = JSON.parse(chunk); if (obj?.message) cbAnswer += obj.message; } catch {}
-                            }
-                            if (cbAnswer.trim()) await reply(cbAnswer.trim());
-                            else await reply("Hmm, let me think 🤔 Try again!");
-                        } else {
-                            await reply("I'm thinking... 🤔 Try asking me again!");
+                    const DC_INLINE_ENDPOINTS = [
+                        { url: 'https://apis.davidcyril.name.ng/ai/gemini', field: 'message' },
+                        { url: 'https://apis.davidcyril.name.ng/ai/gpt4omini', field: 'response' },
+                        { url: 'https://apis.davidcyril.name.ng/ai/gpt4', field: 'message' },
+                        { url: 'https://apis.davidcyril.name.ng/ai/llama3', field: 'message' }
+                    ];
+                    async function inlineAskAI(prompt) {
+                        for (const ep of DC_INLINE_ENDPOINTS) {
+                            try {
+                                const { data } = await axios.get(ep.url, { params: { text: prompt }, timeout: 15000 });
+                                if (data?.success) {
+                                    const ans = data[ep.field] || data.message || data.response;
+                                    if (ans && typeof ans === 'string') return ans.trim();
+                                }
+                            } catch {}
                         }
+                        try {
+                            const ddgRes = await axios.get('https://duckduckgo.com/duckchat/v1/status', { headers: { 'x-vqd-accept': '1' }, timeout: 8000 });
+                            const token = ddgRes.headers['x-vqd-4'];
+                            if (token) {
+                                const chatRes = await axios.post('https://duckduckgo.com/duckchat/v1/chat', {
+                                    model: 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }]
+                                }, { headers: { 'x-vqd-4': token, 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' }, timeout: 20000, responseType: 'text' });
+                                const raw = typeof chatRes.data === 'string' ? chatRes.data : JSON.stringify(chatRes.data);
+                                let cbAnswer = '';
+                                for (const line of raw.split('\n')) {
+                                    if (!line.startsWith('data: ')) continue;
+                                    const chunk = line.slice(6).trim();
+                                    if (chunk === '[DONE]') break;
+                                    try { const obj = JSON.parse(chunk); if (obj?.message) cbAnswer += obj.message; } catch {}
+                                }
+                                if (cbAnswer.trim()) return cbAnswer.trim();
+                            }
+                        } catch {}
+                        throw new Error('AI unavailable');
+                    }
+                    try {
+                        const cbAnswer = await inlineAskAI(userMsg);
+                        await reply(cbAnswer);
                     } catch {
                         await reply("Oops! 😅 Something went wrong. Try again!");
                     }

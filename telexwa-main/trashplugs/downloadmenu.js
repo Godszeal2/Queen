@@ -20,6 +20,15 @@ let trashplug = async (m, { trashcore, reply }) => {
 │
 └ ❏
 
+┌ ❏ *⌜ APK DOWNLOAD ⌟* ❏
+│
+├◆ *.apk* <app name>
+│  └ Download any Android app
+│  └ *Example:* .apk WhatsApp
+│  └ *Example:* .apk Telegram
+│
+└ ❏
+
 ┌ ❏ *⌜ VIEW-ONCE TOOLS ⌟* ❏
 │
 ├◆ *.vv* (reply view-once msg)
@@ -29,7 +38,7 @@ let trashplug = async (m, { trashcore, reply }) => {
 │
 └ ❏
 
-📊 *Total Download Commands:* 4
+📊 *Total Download Commands:* 5
 
 💡 *Tips:*
 • Use YouTube links for best results

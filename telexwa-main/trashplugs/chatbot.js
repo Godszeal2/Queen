@@ -68,32 +68,42 @@ async function askDuckDuckGoAI(prompt) {
     return message.trim() || null;
 }
 
+const DC_CHAT_ENDPOINTS = [
+    { url: 'https://apis.davidcyril.name.ng/ai/gemini', field: 'message' },
+    { url: 'https://apis.davidcyril.name.ng/ai/gpt4omini', field: 'response' },
+    { url: 'https://apis.davidcyril.name.ng/ai/gpt4', field: 'message' },
+    { url: 'https://apis.davidcyril.name.ng/ai/llama3', field: 'message' },
+    { url: 'https://apis.davidcyril.name.ng/ai/gpt3', field: 'message' }
+];
+
+async function askDavidCyrilAI(prompt) {
+    for (const ep of DC_CHAT_ENDPOINTS) {
+        try {
+            const { data } = await axios.get(ep.url, {
+                params: { text: prompt },
+                timeout: 15000
+            });
+            if (data?.success) {
+                const answer = data[ep.field] || data.message || data.response;
+                if (answer && typeof answer === 'string') return answer.trim();
+            }
+        } catch {}
+    }
+    throw new Error('All David Cyril endpoints failed');
+}
+
 async function askAI(prompt) {
-    const errors = [];
+    try {
+        const ans = await askDavidCyrilAI(prompt);
+        if (ans) return ans;
+    } catch {}
 
     try {
         const ans = await askDuckDuckGoAI(prompt);
         if (ans) return ans;
-    } catch (e) {
-        errors.push('DDG: ' + e.message);
-    }
+    } catch {}
 
-    const fallbackAPIs = [
-        `https://api.siputzx.my.id/api/ai/gemini?prompt=${encodeURIComponent(prompt)}`,
-        `https://api.nekorinn.my.id/ai/chatgpt?q=${encodeURIComponent(prompt)}`
-    ];
-
-    for (const url of fallbackAPIs) {
-        try {
-            const r = await axios.get(url, { timeout: 10000 });
-            const ans = r.data?.result || r.data?.answer || r.data?.response || r.data?.message;
-            if (ans && typeof ans === 'string') return ans.trim();
-        } catch (e) {
-            errors.push(url + ': ' + e.message);
-        }
-    }
-
-    throw new Error('All AI APIs failed: ' + errors.join('; '));
+    throw new Error('All AI services unavailable');
 }
 
 let trashplug = async (m, { trashcore, reply, text, command }) => {

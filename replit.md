@@ -10,16 +10,20 @@ A WhatsApp + Telegram hybrid bot built with Baileys and node-telegram-bot-api.
 - **Bot Restart Wrapper**: `telexwa-main/server.js`
 - **Menu**: `telexwa-main/library/listmenu/menulist.js`
 
-## Commands
+## Commands (79 total across 43 plugins)
 
 | Category | Commands |
 |---|---|
-| General | .menu, .ping, .alive, .joke, .quote, .fact, .jid, .dev, .repo |
-| AI | .ai, .ask, .gpt (DuckDuckGo AI), .chatbot on/off |
+| AI | .ai, .ask, .gpt, .gemini, .llama, .mixtral, .deepseek, .chatbot on/off |
+| Image AI | .imagine, .txt2img, .gen, .ai2img |
+| Download | .play (ytmp3), .ytmp4, .apk/.apkdl, .vv (reveal), .vv2 (reveal+DM) |
 | Games | .8ball, .truth, .dare, .flirt, .character |
-| Admin | .tagall, .chatbot, .gcstatus, .groupinfo, .setgname, .setgdesc, .setgpp |
-| Media | .play (ytmp3), .ytmp4 |
-| Owner | .public, .private, .autoreact, .addaccess, .delaccess, .trash |
+| Fun | .joke, .quote, .fact |
+| Anime | .waifu, .neko, .anime |
+| Admin | .tagall, .chatbot, .gcstatus, .groupinfo, .setgname, .setgdesc, .setgpp, .addaccess, .delaccess |
+| General | .menu, .ping, .alive, .owner, .dev, .repo, .jid |
+| Owner | .public, .private, .autoreact, .trash |
+| Category Menus | .aimenu, .downloadmenu, .gamemenu, .animemenu, .adminmenu, .generalmenu, .ownermenu |
 
 ## Key Dependencies
 

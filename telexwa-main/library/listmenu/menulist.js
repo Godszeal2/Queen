@@ -19,21 +19,23 @@ const Menu = `╔═════════════════════
 ├◆ ⏱️ *Uptime:* ${_hours}h ${_minutes}m
 ├◆ 💾 *RAM:* ${_memUsed} MB
 ├◆ ✅ *Status:* Online & Active
-├◆ 📊 *Commands:* 52+
+├◆ 📊 *Commands:* 79 (58 base + 21 aliases)
 │
 └ ❏
 
-╔══ 🤖 *AI COMMANDS* [8] ══╗
+╔══ 🤖 *AI COMMANDS* [12] ══╗
 
 ├◆ .ai / .ask / .gpt <question>
+├◆ .gemini / .llama / .mixtral
 ├◆ .imagine / .gen <description>
 ├◆ .txt2img / .ai2img <prompt>
 ├◆ .chatbot on/off (group admin)
 
-╔══ 📥 *DOWNLOAD* [4] ══╗
+╔══ 📥 *DOWNLOAD* [5] ══╗
 
 ├◆ .play <song or URL>   [YT MP3]
 ├◆ .ytmp4 <video or URL> [YT MP4]
+├◆ .apk <app name>       [APK]
 ├◆ .vv (reply view-once) [reveal]
 ├◆ .vv2 (reply + send DM)[reveal+DM]
 
@@ -43,6 +45,10 @@ const Menu = `╔═════════════════════
 ├◆ .truth | .dare
 ├◆ .flirt | .character @user
 ├◆ .joke | .quote | .fact
+
+╔══ 🎌 *ANIME* [3] ══╗
+
+├◆ .waifu | .neko | .anime
 
 ╔══ 👥 *GROUP ADMIN* [10] ══╗
 
@@ -66,8 +72,9 @@ const Menu = `╔═════════════════════
 ╔══ 📋 *CATEGORY MENUS* ══╗
 
 ├◆ .aimenu — AI commands detail
-├◆ .downloadmenu — Download help
+├◆ .downloadmenu — Downloads
 ├◆ .gamemenu — Games & fun
+├◆ .animemenu — Anime images
 ├◆ .adminmenu — Group admin
 ├◆ .generalmenu — General cmds
 ├◆ .ownermenu — Owner panel
