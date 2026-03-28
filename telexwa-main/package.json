@@ -24,6 +24,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
     "fs-extra": "^10.0.0",
+    "gtts": "^0.2.1",
     "human-readable": "^0.2.1",
     "jimp": "latest",
     "libsignal": "github:horlapookie/libsignal-node",

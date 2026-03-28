@@ -1,4 +1,8 @@
-let trashplug = async (m, { trashcore, replymenu, reply, menu }) => {
+const makeMenu = require('../library/listmenu/menulist');
+
+let trashplug = async (m, { trashcore, replymenu, reply }) => {
+    const menuText = makeMenu(m.pushName || 'User');
+
     const buttons = [
         { id: 'aimenu', text: '🤖 AI Commands' },
         { id: 'downloadmenu', text: '📥 Downloads' },
@@ -17,12 +21,12 @@ let trashplug = async (m, { trashcore, replymenu, reply, menu }) => {
     try {
         const { sendButtons } = require('gifted-btns');
         await sendButtons(trashcore, m.chat, {
-            text: menu,
-            footer: '👑 Queen Abims Bot — Pick a category to explore!',
+            text: menuText,
+            footer: '👑 Queen Abims Bot v1 — Pick a category!',
             buttons
         });
     } catch {
-        replymenu(menu);
+        await reply(menuText);
     }
 };
 

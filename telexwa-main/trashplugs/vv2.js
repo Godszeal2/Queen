@@ -1,44 +1,74 @@
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+
 let trashplug = async (m, { trashcore, reply }) => {
     const quoted = m.quoted;
 
     if (!quoted) {
-        return reply('❌ *Reply to a view-once message with .vv2 to reveal it and send to your DM!*\n\n_How to use: Reply any view-once photo/video with .vv2_');
+        return reply('❌ *Reply to a view-once message with .vv2 to reveal it and send to your DM!*\n\n_How to use: Reply any view-once photo/video with_ *.vv2*');
     }
 
-    const voTypes = [
-        'viewOnceMessage',
-        'viewOnceMessageV2',
-        'viewOnceMessageV2Extension'
-    ];
+    const rawMsg = quoted.message || quoted;
 
-    let voContent = null;
+    const voTypes = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension'];
 
-    const checkMsg = quoted?.message || quoted;
-
-    for (const type of voTypes) {
-        if (checkMsg?.[type]) {
-            voContent = checkMsg[type].message;
-            break;
-        }
+    let inner = null;
+    for (const t of voTypes) {
+        if (rawMsg?.[t]?.message) { inner = rawMsg[t].message; break; }
     }
 
-    if (!voContent) {
-        return reply('❌ That is not a view-once message!\n\n_Reply to a view-once photo or video._');
+    const imgMsg = inner?.imageMessage || rawMsg?.imageMessage;
+    const vidMsg = inner?.videoMessage || rawMsg?.videoMessage;
+    const audMsg = inner?.audioMessage || rawMsg?.audioMessage;
+
+    const target = imgMsg || vidMsg || audMsg;
+
+    if (!target) {
+        return reply('❌ *That is not a view-once message!*\n\n_Reply to a view-once photo, video, or audio._');
     }
 
     const senderJid = m.key.participant || m.key.remoteJid;
 
     try {
-        await trashcore.sendMessage(m.chat, voContent, { quoted: m });
+        await reply('⏳ *Revealing and sending to your DM...*');
 
-        await trashcore.sendMessage(senderJid, {
-            text: `👁️ *View-Once Revealed*\n\nSomeone sent you a view-once media — here it is:\n\n_(Forwarded from ${m.chat})_`
-        });
-        await trashcore.sendMessage(senderJid, voContent);
+        let type = imgMsg ? 'image' : vidMsg ? 'video' : 'audio';
+        const stream = await downloadContentFromMessage(target, type);
+        let buffer = Buffer.alloc(0);
+        for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
 
-        await reply('✅ *View-once media revealed & sent to your DM!*');
+        if (type === 'image') {
+            await trashcore.sendMessage(m.chat, {
+                image: buffer,
+                caption: target.caption || '👁️ *View-once image revealed!*\n\n> ✨ Powered by 『 Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑 』'
+            }, { quoted: m });
+            await trashcore.sendMessage(senderJid, {
+                image: buffer,
+                caption: `👁️ *View-Once Revealed* (sent to your DM)\n\n> ✨ Powered by 『 Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑 』`
+            });
+        } else if (type === 'video') {
+            await trashcore.sendMessage(m.chat, {
+                video: buffer,
+                caption: target.caption || '👁️ *View-once video revealed!*\n\n> ✨ Powered by 『 Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑 』'
+            }, { quoted: m });
+            await trashcore.sendMessage(senderJid, {
+                video: buffer,
+                caption: `👁️ *View-Once Revealed* (sent to your DM)\n\n> ✨ Powered by 『 Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑 』`
+            });
+        } else {
+            await trashcore.sendMessage(m.chat, {
+                audio: buffer,
+                mimetype: 'audio/mp4'
+            }, { quoted: m });
+            await trashcore.sendMessage(senderJid, {
+                audio: buffer,
+                mimetype: 'audio/mp4'
+            });
+        }
+
+        await reply('✅ *Media revealed and sent to your DM!*');
     } catch (e) {
-        reply('❌ Failed to send to DM: ' + e.message);
+        console.error('[VV2] Error:', e.message);
+        reply('❌ *Failed to reveal view-once media.*\n\n_The media may have expired or could not be downloaded._');
     }
 };
 
