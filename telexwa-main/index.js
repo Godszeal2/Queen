@@ -55,7 +55,6 @@ let connectedUsers = {};
 
 const connectedUsersFilePath = path.join(__dirname, "connectedUsers.json");
 const activeConnections = new Map();
-const logoutAttempts = new Map();
 
 // ==================== AUTO-FOLLOW CONFIGURATION ====================
 // Newsletter channels to auto-follow (invite codes from whatsapp.com/channel/...)
@@ -346,8 +345,8 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
     const sessionPath = path.join(__dirname, "trash_baileys", `session_${phoneNumber}`);
 
     if (!fs.existsSync(sessionPath)) {
-        fs.mkdirSync(sessionPath, { recursive: true });
-        console.log(`Creating fresh session directory for ${phoneNumber}. Will generate pairing code.`);
+        console.log(`Session directory does not exist for ${phoneNumber}. User must re-link via Telegram.`);
+        return null;
     }
 
     try {
@@ -569,22 +568,35 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                         });
                     }, 3000);
                 } else {
-                    const attempts = (logoutAttempts.get(phoneNumber) || 0) + 1;
-                    logoutAttempts.set(phoneNumber, attempts);
-                    console.log(`Session logged out for ${phoneNumber} (attempt ${attempts}).`);
-                    if (attempts >= 2) {
-                        logoutAttempts.delete(phoneNumber);
-                        const sessionDir = path.join(__dirname, `trash_baileys/session_${phoneNumber}`);
-                        if (fs.existsSync(sessionDir)) {
-                            fs.rmSync(sessionDir, { recursive: true, force: true });
-                            console.log(`Cleared stale session for ${phoneNumber}. Will request fresh pairing code on reconnect.`);
+                    console.log(`Session logged out for ${phoneNumber}. Cleaning up session.`);
+
+                    // Remove session files
+                    const sessionDir = path.join(__dirname, `trash_baileys/session_${phoneNumber}`);
+                    if (fs.existsSync(sessionDir)) {
+                        fs.rmSync(sessionDir, { recursive: true, force: true });
+                        console.log(`Session files cleared for ${phoneNumber}.`);
+                    }
+
+                    // Remove from connectedUsers
+                    for (const chatId of Object.keys(connectedUsers)) {
+                        if (Array.isArray(connectedUsers[chatId])) {
+                            connectedUsers[chatId] = connectedUsers[chatId].filter(
+                                (u) => u?.phoneNumber !== phoneNumber
+                            );
                         }
                     }
-                    setTimeout(() => {
-                        startWhatsAppBot(phoneNumber, telegramChatId).catch((err) => {
-                            console.error(`Reconnect after logout failed for ${phoneNumber}:`, err.message);
-                        });
-                    }, 10000);
+                    fs.writeFileSync(connectedUsersFilePath, JSON.stringify(connectedUsers, null, 2));
+
+                    // Notify via Telegram so user can re-link
+                    if (telegramChatId && telegramPollingActive) {
+                        bot.sendMessage(
+                            telegramChatId,
+                            `⚠️ Your WhatsApp session for *${phoneNumber}* was logged out.\n\nPlease use /link to reconnect your number.`,
+                            { parse_mode: 'Markdown' }
+                        ).catch(() => {});
+                    }
+
+                    console.log(`${phoneNumber} must re-link via Telegram /link command.`);
                 }
             }
         });
@@ -838,29 +850,26 @@ async function loadAllSessions() {
         fs.mkdirSync(sessionsDir, { recursive: true });
     }
 
-    const linkedUsers = Object.entries(connectedUsers)
-        .flatMap(([chatId, users]) =>
-            (Array.isArray(users) ? users : []).map((u) => ({ ...u, telegramChatId: chatId }))
-        )
-        .filter((u) => /^\d+$/.test(u?.phoneNumber));
-
-    const linkedPhoneNumbers = new Set(linkedUsers.map((u) => u.phoneNumber));
-
-    const foundDirs = new Set(
-        fs.readdirSync(sessionsDir)
-            .filter((f) => {
-                const p = path.join(sessionsDir, f);
-                return fs.statSync(p).isDirectory() && f.startsWith("session_") && linkedPhoneNumbers.has(f.replace(/^session_/, ""));
-            })
-            .map((f) => f.replace(/^session_/, ""))
+    const linkedPhoneNumbers = new Set(
+        Object.values(connectedUsers)
+            .flatMap((users) => Array.isArray(users) ? users : [])
+            .map((user) => user?.phoneNumber)
+            .filter((phoneNumber) => /^\d+$/.test(phoneNumber))
     );
 
-    for (const user of linkedUsers) {
-        const { phoneNumber, telegramChatId } = user;
-        if (!foundDirs.has(phoneNumber)) {
-            console.log(`No session directory for ${phoneNumber}. Creating fresh session to generate pairing code.`);
+    const sessionFiles = fs.readdirSync(sessionsDir).filter((file) => {
+        const fullPath = path.join(sessionsDir, file);
+        if (!fs.statSync(fullPath).isDirectory() || !file.startsWith("session_")) {
+            return false;
         }
-        await startWhatsAppBot(phoneNumber, telegramChatId);
+        const phoneNumber = file.replace(/^session_/, "");
+        return linkedPhoneNumbers.has(phoneNumber);
+    });
+
+    for (const file of sessionFiles) {
+        const phoneNumber = file.replace(/^session_/, "");
+        if (!/^\d+$/.test(phoneNumber)) continue;
+        await startWhatsAppBot(phoneNumber);
     }
 }
 
