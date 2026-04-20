@@ -591,7 +591,7 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                     if (telegramChatId && telegramPollingActive) {
                         bot.sendMessage(
                             telegramChatId,
-                            `⚠️ Your WhatsApp session for *${phoneNumber}* was logged out.\n\nPlease use /link to reconnect your number.`,
+                            `⚠️ Your WhatsApp session for *${phoneNumber}* was logged out.\n\nPlease use /connect to reconnect your number.`,
                             { parse_mode: 'Markdown' }
                         ).catch(() => {});
                     }
