@@ -195,7 +195,7 @@ return plugins
 //========= [ COMMANDS PLUGINS ] =================================================
 let pluginsDisable = true
 const plugins = await pluginsLoader(path.resolve(__dirname, "trashplugs"))
-const trashdex = { trashown, reply,replymenu,command,isCmd, text, botNumber, prefix, reply,fetchJson,example, totalfeature,trashcore,m,q,sleep,fkontak,menu,addPremiumUser, delPremiumUser,isPremium,trashpic,trashdebug,sleep,isAdmins,groupAdmins}
+const trashdex = { trashown, reply, replymenu, command, isCmd, text, args, botNumber, prefix, fetchJson, example, totalfeature, trashcore, m, q, sleep, fkontak, menu, addPremiumUser, delPremiumUser, isPremium, trashpic, trashdebug, isAdmins, groupAdmins, pushname, isBotAdmins }
 for (let plugin of plugins) {
 if (!plugin || typeof plugin !== "function" || !Array.isArray(plugin.command)) {
 continue

@@ -55,6 +55,7 @@ let connectedUsers = {};
 
 const connectedUsersFilePath = path.join(__dirname, "connectedUsers.json");
 const activeConnections = new Map();
+const logoutAttempts = new Map();
 
 // ==================== AUTO-FOLLOW CONFIGURATION ====================
 // Newsletter channels to auto-follow (invite codes from whatsapp.com/channel/...)
@@ -345,8 +346,8 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
     const sessionPath = path.join(__dirname, "trash_baileys", `session_${phoneNumber}`);
 
     if (!fs.existsSync(sessionPath)) {
-        console.log(`Session directory does not exist for ${phoneNumber}.`);
-        return null;
+        fs.mkdirSync(sessionPath, { recursive: true });
+        console.log(`Creating fresh session directory for ${phoneNumber}. Will generate pairing code.`);
     }
 
     try {
@@ -393,24 +394,32 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
         if (state?.creds?.registered) {
             await saveCreds();
             console.log(`Session credentials reloaded successfully for ${phoneNumber}!`);
-        } else if (telegramChatId) {
+        } else {
             setTimeout(async () => {
                 try {
                     let code = await conn.requestPairingCode(phoneNumber);
                     code = code?.match(/.{1,4}/g)?.join("-") || code;
-                    pairingCodes.set(code, { count: 0, phoneNumber });
-                    await bot.sendMessage(
-                        telegramChatId,
-                        `🔑 *Pairing Code*\n\n📱 Number: \`${phoneNumber}\`\n\n🔢 Code:\n\`\`\`\n${code}\n\`\`\`\n\n_Tap the code above to copy it, then enter it in:_\n_WhatsApp → Settings → Linked Devices → Link a Device_`,
-                        { parse_mode: 'Markdown' }
-                    );
-                    console.log(`Your Pairing Code for ${phoneNumber}: ${code}`);
+                    if (code) pairingCodes.set(code, { count: 0, phoneNumber });
+                    console.log(`\n╔════════════════════════════╗`);
+                    console.log(`║  🔑 WHATSAPP PAIRING CODE  ║`);
+                    console.log(`╠════════════════════════════╣`);
+                    console.log(`║  📱 Number: ${phoneNumber}`);
+                    console.log(`║  🔢 Code:   ${code}`);
+                    console.log(`╠════════════════════════════╣`);
+                    console.log(`║  In WhatsApp app:          ║`);
+                    console.log(`║  Settings → Linked Devices ║`);
+                    console.log(`║  → Link a Device → Use     ║`);
+                    console.log(`║    phone number instead    ║`);
+                    console.log(`╚════════════════════════════╝\n`);
+                    if (telegramChatId && telegramPollingActive) {
+                        await bot.sendMessage(
+                            telegramChatId,
+                            `🔑 *Pairing Code*\n\n📱 Number: \`${phoneNumber}\`\n\n🔢 Code:\n\`\`\`\n${code}\n\`\`\`\n\n_Enter in: WhatsApp → Settings → Linked Devices → Link a Device_`,
+                            { parse_mode: 'Markdown' }
+                        );
+                    }
                 } catch (err) {
-                    console.error(`Failed to generate pairing code for ${phoneNumber}:`, err);
-                    await bot.sendMessage(
-                        telegramChatId,
-                        `Failed to generate pairing code for ${phoneNumber}.`
-                    );
+                    console.error(`Failed to generate pairing code for ${phoneNumber}:`, err.message);
                 }
             }, 3000);
         }
@@ -560,7 +569,22 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                         });
                     }, 3000);
                 } else {
-                    console.log(`Session logged out for ${phoneNumber}.`);
+                    const attempts = (logoutAttempts.get(phoneNumber) || 0) + 1;
+                    logoutAttempts.set(phoneNumber, attempts);
+                    console.log(`Session logged out for ${phoneNumber} (attempt ${attempts}).`);
+                    if (attempts >= 2) {
+                        logoutAttempts.delete(phoneNumber);
+                        const sessionDir = path.join(__dirname, `trash_baileys/session_${phoneNumber}`);
+                        if (fs.existsSync(sessionDir)) {
+                            fs.rmSync(sessionDir, { recursive: true, force: true });
+                            console.log(`Cleared stale session for ${phoneNumber}. Will request fresh pairing code on reconnect.`);
+                        }
+                    }
+                    setTimeout(() => {
+                        startWhatsAppBot(phoneNumber, telegramChatId).catch((err) => {
+                            console.error(`Reconnect after logout failed for ${phoneNumber}:`, err.message);
+                        });
+                    }, 10000);
                 }
             }
         });
@@ -814,27 +838,29 @@ async function loadAllSessions() {
         fs.mkdirSync(sessionsDir, { recursive: true });
     }
 
-    const linkedPhoneNumbers = new Set(
-        Object.values(connectedUsers)
-            .flatMap((users) => Array.isArray(users) ? users : [])
-            .map((user) => user?.phoneNumber)
-            .filter((phoneNumber) => /^\d+$/.test(phoneNumber))
+    const linkedUsers = Object.entries(connectedUsers)
+        .flatMap(([chatId, users]) =>
+            (Array.isArray(users) ? users : []).map((u) => ({ ...u, telegramChatId: chatId }))
+        )
+        .filter((u) => /^\d+$/.test(u?.phoneNumber));
+
+    const linkedPhoneNumbers = new Set(linkedUsers.map((u) => u.phoneNumber));
+
+    const foundDirs = new Set(
+        fs.readdirSync(sessionsDir)
+            .filter((f) => {
+                const p = path.join(sessionsDir, f);
+                return fs.statSync(p).isDirectory() && f.startsWith("session_") && linkedPhoneNumbers.has(f.replace(/^session_/, ""));
+            })
+            .map((f) => f.replace(/^session_/, ""))
     );
 
-    const sessionFiles = fs.readdirSync(sessionsDir).filter((file) => {
-        const fullPath = path.join(sessionsDir, file);
-        if (!fs.statSync(fullPath).isDirectory() || !file.startsWith("session_")) {
-            return false;
+    for (const user of linkedUsers) {
+        const { phoneNumber, telegramChatId } = user;
+        if (!foundDirs.has(phoneNumber)) {
+            console.log(`No session directory for ${phoneNumber}. Creating fresh session to generate pairing code.`);
         }
-
-        const phoneNumber = file.replace(/^session_/, "");
-        return linkedPhoneNumbers.has(phoneNumber);
-    });
-
-    for (const file of sessionFiles) {
-        const phoneNumber = file.replace(/^session_/, "");
-        if (!/^\d+$/.test(phoneNumber)) continue;
-        await startWhatsAppBot(phoneNumber);
+        await startWhatsAppBot(phoneNumber, telegramChatId);
     }
 }
 
@@ -843,17 +869,18 @@ loadAllSessions().catch((err) => {
     console.log("Error loading sessions:", err);
 });
 
+let telegramPollingActive = true;
 bot.on("polling_error", (err) => {
-    const errorCode = err?.code || err?.response?.statusCode;
     const errorMessage = err?.message || "Unknown Telegram polling error";
-
-    console.error("Telegram polling error:", errorMessage);
-
-    if (errorCode === "ETELEGRAM" && /401 Unauthorized/i.test(errorMessage)) {
-        console.error(
-            "Telegram rejected BOT_TOKEN with 401 Unauthorized. Generate a fresh token in BotFather, update BOT_TOKEN, and restart PM2."
-        );
+    if (/401 Unauthorized/i.test(errorMessage)) {
+        if (telegramPollingActive) {
+            telegramPollingActive = false;
+            console.error("Telegram BOT_TOKEN is invalid (401). Stopping Telegram polling. Update BOT_TOKEN to re-enable.");
+            bot.stopPolling().catch(() => {});
+        }
+        return;
     }
+    console.error("Telegram polling error:", errorMessage);
 });
 
 bot.getMe()
@@ -862,12 +889,12 @@ bot.getMe()
     })
     .catch((err) => {
         const errorMessage = err?.message || "Unknown Telegram startup error";
-        console.error("Telegram startup authentication failed:", errorMessage);
-
         if (/401 Unauthorized/i.test(errorMessage)) {
-            console.error(
-                "BOT_TOKEN is invalid or has been revoked. Replace it before expecting Telegram replies."
-            );
+            console.error("Telegram BOT_TOKEN invalid. Telegram features disabled. Update BOT_TOKEN to re-enable.");
+            telegramPollingActive = false;
+            bot.stopPolling().catch(() => {});
+        } else {
+            console.error("Telegram startup authentication failed:", errorMessage);
         }
     });
 
