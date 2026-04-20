@@ -611,6 +611,11 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                 const mek = chatUpdate.messages?.[0];
                 if (!mek?.message) return;
 
+                // Skip bot's own Baileys-sent messages (echoes) but allow owner
+                // commands from their primary phone (also fromMe but not isBaileys)
+                const msgId = mek.key?.id || '';
+                if (mek.key?.fromMe && msgId.startsWith('BAE5') && msgId.length === 16) return;
+
                 mek.message =
                     Object.keys(mek.message)[0] === "ephemeralMessage"
                         ? mek.message.ephemeralMessage.message

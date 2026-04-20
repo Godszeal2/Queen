@@ -29,13 +29,3 @@ global.mess = {
     wait: '⏳ 𝕻𝖗𝖔𝖈𝖊𝖘𝖘𝖎𝖓𝖌...',
     error: '⚠️ 𝕰𝖗𝖗𝖔𝖗 𝖔𝖈𝖈𝖚𝖗𝖗𝖊𝖉..',
 }
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// File Update
-let fs = require('fs')
-let file = require.resolve(__filename)
-fs.watchFile(file, () => {
-fs.unwatchFile(file)
-console.log(`Update File 📁 : ${__filename}`)
-delete require.cache[file]
-require(file)
-})

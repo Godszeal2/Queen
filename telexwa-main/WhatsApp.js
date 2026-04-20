@@ -70,18 +70,25 @@ console.log(chalk.black(chalk.bgWhite(!command ? '[ MESSAGE ]' : '[ COMMAND ]'))
 const fkontak = { key: {fromMe: false,participant: `0@s.whatsapp.net`, ...(from ? { remoteJid: "status@broadcast" } : {}) }, message: { 'contactMessage': { 'displayName': `🩸⃟‣‣Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑`, 'vcard': `BEGIN:VCARD\nVERSION:3.0\nN:XL;Vinzx,;;;\nFN:${pushname},\nitem1.TEL;waid=${sender.split('@')[0]}:${sender.split('@')[0]}\nitem1.X-ABLabel:Ponsel\nEND:VCARD`, 'jpegThumbnail': { url: 'https://files.catbox.moe/s0yc4f.jpg' }}}}
 ////////////////Reply Message////////////////
 const replypic = fs.readFileSync('./library/media/connect.jpg');
-const reply = async (teks) => { 
-return trashcore.sendMessage(m.chat, { text: teks, contextInfo: { 
-"externalAdReply": { 
-"showAdAttribution": true, 
-"title": "🩸⃟‣Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑", 
-"containsAutoReply": true, 
-"mediaType": 1, 
-"thumbnail": replypic, 
-"sourceUrl": "https://github.com/AiOfLautech/God-s-Zeal-Xmd" }}}, { quoted: m }).catch((err) => {
-console.error("Reply send failed:", err)
-return null
-}) }
+const reply = async (teks) => {
+try {
+    return await trashcore.sendMessage(m.chat, { text: teks, contextInfo: {
+        "externalAdReply": {
+            "showAdAttribution": true,
+            "title": "🩸⃟‣Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑",
+            "containsAutoReply": true,
+            "mediaType": 1,
+            "thumbnail": replypic,
+            "sourceUrl": "https://github.com/AiOfLautech/God-s-Zeal-Xmd"
+        }
+    }}, { quoted: m });
+} catch {
+    return trashcore.sendMessage(m.chat, { text: teks }, { quoted: m }).catch((err) => {
+        console.error("Reply send failed:", err);
+        return null;
+    });
+}
+}
 
 const trashreply = async (teks) => {
 return trashcore.sendMessage(m.chat, { text : teks }, { quoted : m }).catch((err) => {
@@ -330,12 +337,3 @@ if (stdout) return reply(stdout)
   }
 }
 }
-//━━━━━━━━━━━━━━━━━━━━━━━━//
-// File Update
-let file = require.resolve(__filename)
-fs.watchFile(file, () => {
-fs.unwatchFile(file)
-console.log(`Update File 📁 : ${__filename}`)
-delete require.cache[file]
-require(file)
-})
