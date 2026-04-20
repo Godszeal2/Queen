@@ -927,6 +927,14 @@ const keepaliveServer = http.createServer((req, res) => {
     }));
 });
 
+keepaliveServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.warn(`Keepalive port ${KEEPALIVE_PORT} already in use — skipping.`);
+    } else {
+        console.error('Keepalive server error:', err.message);
+    }
+});
+
 keepaliveServer.listen(KEEPALIVE_PORT, () => {
     console.log(`Keepalive server running on port ${KEEPALIVE_PORT}`);
 });
@@ -939,10 +947,3 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 // ==================== END KEEPALIVE ====================
 
-const file = require.resolve(__filename);
-fs.watchFile(file, () => {
-    fs.unwatchFile(file);
-    console.log(`Update ${__filename}`);
-    delete require.cache[file];
-    require(file);
-});
