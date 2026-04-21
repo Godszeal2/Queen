@@ -29,6 +29,7 @@ const {
 ///////////database access/////////////////
 const { addPremiumUser, delPremiumUser } = require("./library/lib/premiun");
 const botSettings = require("./library/lib/settings");
+const { normalizeText } = require("./library/lib/fontNormalize");
 /////////exports////////////////////////////////
 module.exports = async (trashcore, m) => {
 try {
@@ -38,7 +39,10 @@ var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.int
 const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUrl, hitungmundur, sleep, clockString, checkBandwidth, runtime, tanggal, getRandom } = require('./library/lib/function')
 // Main Setting (Admin And Prefix )///////
 const budy = (typeof m.text === 'string') ? m.text : '';
-const normalizedBody = typeof body === 'string' ? body : '';
+// Accept fancy-font commands: convert styled Unicode letters back to ASCII
+// before parsing the prefix and command name (does not affect the message body).
+const rawBody = typeof body === 'string' ? body : '';
+const normalizedBody = normalizeText(rawBody);
 const settings = botSettings.loadSettings();
 const configuredPrefix = settings.prefix || '.';
 const escapedPrefix = configuredPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -233,6 +237,31 @@ await plugin(m, trashdex)
 }
 }
 if (!pluginsDisable) return
+
+// ===== UNKNOWN COMMAND → SUGGEST SIMILAR =====
+if (isCmd && command) {
+    try {
+        const allCmds = new Set();
+        for (const p of plugins) {
+            if (p && Array.isArray(p.command)) p.command.forEach(c => allCmds.add(String(c).toLowerCase()));
+        }
+        const list = [...allCmds];
+        const guess = didyoumean(command, list);
+        const close = list
+            .map(c => ({ c, s: similarity(command, c) }))
+            .filter(x => x.s >= 0.45 && x.c !== command)
+            .sort((a, b) => b.s - a.s)
+            .slice(0, 5)
+            .map(x => `${prefix}${x.c}`);
+        const suggestions = guess && !close.some(s => s.endsWith(guess)) ? [`${prefix}${guess}`, ...close] : close;
+        if (suggestions.length) {
+            await reply(`❌ Unknown command: *${prefix}${command}*\n\n💡 Did you mean:\n${suggestions.map(s => `• ${s}`).join('\n')}\n\nType *${prefix}menu* to see all commands.`);
+        }
+    } catch (e) {
+        // silent
+    }
+}
+// ===== END UNKNOWN COMMAND =====
 
 // ========== CHATBOT AUTO-RESPONSE HANDLER ==========
 if (m.isGroup && !isCmd) {

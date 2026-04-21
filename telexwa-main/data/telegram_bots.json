@@ -1,0 +1,11 @@
+{
+  "_comment": "Registry of Telegram bot deployments users can connect through. The bot uses this to render the .pair command response. Each deployment is on a different server with its own BOT_TOKEN. Add entries as you deploy more bots.",
+  "bots": [
+    {
+      "username": "QueenAbimsBot",
+      "label": "Queen Abims (Primary)",
+      "link": "https://t.me/QueenAbimsBot",
+      "region": "Default"
+    }
+  ]
+}

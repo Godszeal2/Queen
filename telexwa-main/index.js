@@ -31,19 +31,30 @@ const BOT_TOKEN = process.env.BOT_TOKEN || settings.BOT_TOKEN;
 const BOT_NAME = settings.BotName || "Telegram Bot";
 const OWNER_ID = String(settings.OWNER_ID);
 const OWNER_NAME = "𝙂𝙤𝙙'𝙨 𝙕𝙚𝙖𝙡 †";
-const REQUIRED_GROUP_ID = -1002403372004;
-const REQUIRED_CHANNEL_ID = '@aitoolshub01';
-const OPTIONAL_CHANNEL_GATEWAY = {
-    id: -1003694231720,
-    label: "channel",
-    name: "Optional Channel",
-    link: null,
-    confirmGateway: false
-};
-const REQUIRED_GROUP_LINK = "https://t.me/+e3oHhsw6tJw5OWY0";
-const REQUIRED_CHANNEL_LINK = "https://t.me/aitoolshub01";
-const REQUIRED_GROUP_NAME = "AI TOOLS HUB";
-const REQUIRED_CHANNEL_NAME = "AI TOOLS HUB";
+
+// ==================== GATEWAY CONFIG (JSON-driven) ====================
+function loadGatewayConfig() {
+    try {
+        const p = path.join(__dirname, 'data', 'telegram_gateway.json');
+        const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+        return {
+            enabled: !!cfg.enabled,
+            requirements: Array.isArray(cfg.requirements) ? cfg.requirements : []
+        };
+    } catch {
+        return { enabled: false, requirements: [] };
+    }
+}
+
+function loadTelegramBots() {
+    try {
+        const p = path.join(__dirname, 'data', 'telegram_bots.json');
+        const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+        return Array.isArray(cfg.bots) ? cfg.bots : [];
+    } catch {
+        return [];
+    }
+}
 if (!BOT_TOKEN) {
     throw new Error("Missing BOT_TOKEN. Set it in config.json or the BOT_TOKEN environment variable.");
 }
@@ -128,19 +139,17 @@ function isMembershipActive(status) {
 }
 
 function getGatewayRequirements() {
-    const requirements = [
-        { id: REQUIRED_GROUP_ID, label: "group", name: REQUIRED_GROUP_NAME, link: REQUIRED_GROUP_LINK },
-        { id: REQUIRED_CHANNEL_ID, label: "channel", name: REQUIRED_CHANNEL_NAME, link: REQUIRED_CHANNEL_LINK }
-    ];
-
-    if (OPTIONAL_CHANNEL_GATEWAY.confirmGateway) {
-        requirements.push(OPTIONAL_CHANNEL_GATEWAY);
-    }
-
-    return requirements;
+    return loadGatewayConfig().requirements.map(r => ({
+        id: r.id,
+        label: r.type || 'channel',
+        name: r.name,
+        link: r.link
+    }));
 }
 
 async function getMissingMemberships(userId) {
+    const cfg = loadGatewayConfig();
+    if (!cfg.enabled) return { missing: [], unverifiable: [] };
     const requirements = getGatewayRequirements();
     const missing = [];
     const unverifiable = [];
@@ -441,9 +450,28 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                     if (telegramChatId && telegramPollingActive) {
                         await bot.sendMessage(
                             telegramChatId,
-                            `🔑 *Pairing Code*\n\n📱 Number: \`${phoneNumber}\`\n\n🔢 Code:\n\`\`\`\n${code}\n\`\`\`\n\n_Enter in: WhatsApp → Settings → Linked Devices → Link a Device_`,
-                            { parse_mode: 'Markdown' }
-                        );
+                            `🔑 *Pairing Code Ready*\n\n📱 Number: \`${phoneNumber}\`\n\n🔢 Tap the code to copy:\n\n\`${code}\`\n\n📲 *How to enter:*\n1\\. Open WhatsApp\n2\\. Settings → Linked Devices\n3\\. Link a Device → Link with phone number\n4\\. Enter the code above\n\n_Code expires in ~60 seconds._`,
+                            {
+                                parse_mode: 'MarkdownV2',
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: `📋 Copy: ${code}`, callback_data: `copy_${code}` }],
+                                        [{ text: '🔄 Generate New Code', callback_data: `regen_${phoneNumber}` }, { text: '❌ Cancel', callback_data: `cancel_${phoneNumber}` }]
+                                    ]
+                                }
+                            }
+                        ).catch(async () => {
+                            // Fallback for users where MarkdownV2 escaping fails
+                            await bot.sendMessage(
+                                telegramChatId,
+                                `🔑 Pairing Code\n\nNumber: ${phoneNumber}\n\nTap to copy: ${code}\n\nWhatsApp → Settings → Linked Devices → Link with phone number → enter the code.`,
+                                {
+                                    reply_markup: {
+                                        inline_keyboard: [[{ text: `📋 Copy: ${code}`, callback_data: `copy_${code}` }]]
+                                    }
+                                }
+                            );
+                        });
                     }
                 } catch (err) {
                     console.error(`Failed to generate pairing code for ${phoneNumber}:`, err.message);
@@ -752,28 +780,33 @@ bot.onText(/\/delsession (\d+)/, withMembershipGuard(async (msg, match) => {
 bot.onText(/\/start/, withMembershipGuard(async (msg) => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || "there";
-    const menuText = `
-Hi ${firstName}, welcome to ${BOT_NAME}
+    const menuText =
+`👋 *Welcome ${firstName}!*
 
-╭─⊷${BOT_NAME}─
+╭─⊷ *${BOT_NAME}*
 │▢ Owner: ${OWNER_NAME}
-│▢ Version: 1.0.0
-│▢ Type: TelexWa
+│▢ Version: 1.1.0
+│▢ Type: TelexWa Hybrid
 ╰────────────
-╭─⊷🐦‍🔥MAIN-CMD─
-│ • connect <wa_number>
-│ • delsession <wa_number>
-│ • status
-│ • linked
-│ • ping
-│ • uptime
-│ • owner
-│ • help
-│ • start
-╰────────────
-  `;
 
-    await bot.sendMessage(chatId, menuText);
+🔗 *Quick Start*
+Send: \`/connect 234XXXXXXXXXX\`
+( your WhatsApp number, country code first, no + )
+
+📋 You'll get a pairing code that you tap to copy, then paste in WhatsApp → Linked Devices.
+
+Tap a button below to begin.`;
+
+    await bot.sendMessage(chatId, menuText, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🔗 How to Connect', callback_data: 'help_connect' }, { text: '📋 My Linked Numbers', callback_data: 'show_linked' }],
+                [{ text: '📊 Status', callback_data: 'show_status' }, { text: '⏱️ Uptime', callback_data: 'show_uptime' }],
+                [{ text: '👤 Owner', callback_data: 'show_owner' }, { text: '❓ Help', callback_data: 'show_help' }]
+            ]
+        }
+    });
 }));
 
 bot.onText(/\/help/, withMembershipGuard(async (msg) => {
@@ -843,11 +876,153 @@ bot.onText(/\/owner/, withMembershipGuard(async (msg) => {
     await bot.sendMessage(chatId, `Owner: ${OWNER_NAME}`);
 }));
 
-bot.on("callback_query", async (query) => {
-    if (query.data !== "membership_retry") return;
+// ==================== TELEGRAM HELPERS ====================
+// Convert URLs in a message into inline-keyboard URL buttons (one per link).
+function extractUrlButtons(text) {
+    if (!text) return { cleanText: text, buttons: [] };
+    const urlRegex = /(https?:\/\/[^\s<>()"']+)/g;
+    const seen = new Set();
+    const buttons = [];
+    let cleanText = text;
+    let m;
+    while ((m = urlRegex.exec(text)) !== null) {
+        const url = m[1].replace(/[.,;)]+$/, '');
+        if (!seen.has(url)) {
+            seen.add(url);
+            const label = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'Open Link'; } })();
+            buttons.push([{ text: `🔗 ${label}`, url }]);
+        }
+    }
+    return { cleanText, buttons };
+}
 
+async function sendWithLinkButtons(chatId, text, extra = {}) {
+    const { cleanText, buttons } = extractUrlButtons(text);
+    const opts = { ...extra };
+    if (buttons.length) {
+        opts.reply_markup = { inline_keyboard: [...buttons, ...((extra.reply_markup?.inline_keyboard) || [])] };
+    }
+    return bot.sendMessage(chatId, cleanText, opts);
+}
+
+// ==================== /broadcast ====================
+bot.onText(/\/broadcast(?:\s+([\s\S]+))?/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const userId = String(msg.from?.id || '');
+    if (userId !== OWNER_ID) return bot.sendMessage(chatId, '🚫 Owner only.');
+
+    let text = (match && match[1]) ? match[1].trim() : '';
+    if (!text && msg.reply_to_message) {
+        text = msg.reply_to_message.text || msg.reply_to_message.caption || '';
+    }
+    if (!text) return bot.sendMessage(chatId, 'Usage: /broadcast <message>\n(or reply to a message with /broadcast)');
+
+    const targets = Object.keys(connectedUsers);
+    if (!targets.length) return bot.sendMessage(chatId, 'No connected users to broadcast to.');
+
+    let ok = 0, fail = 0;
+    await bot.sendMessage(chatId, `📣 Broadcasting to ${targets.length} chat(s)...`);
+    for (const tid of targets) {
+        try {
+            await sendWithLinkButtons(tid, text, { disable_web_page_preview: false });
+            ok++;
+        } catch (e) {
+            fail++;
+        }
+        await new Promise(r => setTimeout(r, 80));
+    }
+    await bot.sendMessage(chatId, `✅ Broadcast complete.\n• Delivered: ${ok}\n• Failed: ${fail}`);
+});
+
+// ==================== /pair (Telegram) ====================
+bot.onText(/\/pair$/, async (msg) => {
+    const chatId = msg.chat.id;
+    const bots = loadTelegramBots();
+    if (!bots.length) {
+        return bot.sendMessage(chatId, 'No alternative bot deployments registered.');
+    }
+    const lines = bots.map((b, i) =>
+        `*${i + 1}.* ${b.label || b.username}\n   Region: ${b.region || 'Default'}`
+    );
+    await bot.sendMessage(
+        chatId,
+        `🤖 *Available Bot Deployments*\n\nEach bot can pair *one* WhatsApp number per Telegram account. If a number is already linked elsewhere, use that bot.\n\n${lines.join('\n\n')}`,
+        {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: bots.slice(0, 10).map(b => [{
+                    text: `🤖 ${b.label || b.username}`,
+                    url: b.link || `https://t.me/${b.username}`
+                }])
+            }
+        }
+    );
+});
+
+// ==================== Callback handler ====================
+bot.on("callback_query", async (query) => {
     const chatId = query.message?.chat?.id;
     const userId = query.from?.id;
+    const data = query.data || '';
+
+    if (data.startsWith('copy_')) {
+        const code = data.slice(5);
+        return bot.answerCallbackQuery(query.id, { text: `Code: ${code}\n(Long-press the code in the message to copy)`, show_alert: true });
+    }
+    if (data === 'help_connect') {
+        await bot.answerCallbackQuery(query.id);
+        return bot.sendMessage(chatId,
+            `🔗 *How to Connect*\n\n1. Send: \`/connect <number>\`\n   Example: \`/connect 2349074488015\`\n\n2. The bot replies with a pairing code (tap to copy).\n\n3. In WhatsApp → Settings → Linked Devices → Link with phone number → paste the code.\n\n4. Done! Your WA bot is live.\n\nTo disconnect: \`/delsession <number>\``,
+            { parse_mode: 'Markdown' }
+        );
+    }
+    if (data === 'show_status' || data === 'show_linked') {
+        await bot.answerCallbackQuery(query.id);
+        const list = Array.isArray(connectedUsers[chatId]) ? connectedUsers[chatId] : [];
+        if (!list.length) return bot.sendMessage(chatId, 'You have no linked WhatsApp numbers. Use /connect <number>.');
+        const lines = list.map((u, i) => `${i + 1}. \`${u.phoneNumber}\``);
+        return bot.sendMessage(chatId, `📱 *Your Linked Numbers:*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+    }
+    if (data === 'show_uptime') {
+        await bot.answerCallbackQuery(query.id);
+        const s = Math.floor((Date.now() - startTime) / 1000);
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+        return bot.sendMessage(chatId, `⏱️ Uptime: ${h}h ${m}m ${s % 60}s`);
+    }
+    if (data === 'show_owner') {
+        await bot.answerCallbackQuery(query.id);
+        return bot.sendMessage(chatId, `👤 Owner: ${OWNER_NAME}`);
+    }
+    if (data === 'show_help') {
+        await bot.answerCallbackQuery(query.id);
+        return bot.sendMessage(chatId,
+`*${BOT_NAME} — Commands*
+
+/start — Main menu
+/connect <number> — Link a WhatsApp number
+/delsession <number> — Unlink
+/status — Linked numbers status
+/linked — List linked numbers
+/ping — Health check
+/uptime — Bot uptime
+/owner — Show owner
+/pair — Show all bot deployments
+/help — This message
+
+_Owner-only:_
+/broadcast <message> — Send to all connected users (links auto-convert to buttons)`,
+            { parse_mode: 'Markdown' });
+    }
+    if (data.startsWith('cancel_')) {
+        await bot.answerCallbackQuery(query.id, { text: 'You can ignore this code.' });
+        return;
+    }
+    if (data.startsWith('regen_')) {
+        await bot.answerCallbackQuery(query.id, { text: 'Send /connect <number> again to regenerate.' });
+        return;
+    }
+
+    if (data !== "membership_retry") return;
 
     if (!chatId || !userId) {
         await bot.answerCallbackQuery(query.id, { text: "Unable to verify membership right now." });

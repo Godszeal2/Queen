@@ -1,0 +1,18 @@
+{
+  "enabled": false,
+  "_comment": "Set enabled to true to require users to join the channels/groups below before using the bot. Each item: { id (numeric or @username), name, link, type: 'group'|'channel' }",
+  "requirements": [
+    {
+      "id": -1002403372004,
+      "type": "group",
+      "name": "AI TOOLS HUB",
+      "link": "https://t.me/+e3oHhsw6tJw5OWY0"
+    },
+    {
+      "id": "@aitoolshub01",
+      "type": "channel",
+      "name": "AI TOOLS HUB",
+      "link": "https://t.me/aitoolshub01"
+    }
+  ]
+}
