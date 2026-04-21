@@ -24,9 +24,14 @@ let trashplug = async (m, { trashcore, replymenu, reply }) => {
             text: menuText,
             footer: '👑 Queen Abims Bot v1 — Pick a category!',
             buttons
-        });
-    } catch {
-        await reply(menuText);
+        }, { quoted: m });
+    } catch (e) {
+        console.error('Menu send failed, using plain reply:', e);
+        try {
+            await trashcore.sendMessage(m.chat, { text: menuText }, { quoted: m });
+        } catch (err) {
+            console.error('Menu plain reply also failed:', err);
+        }
     }
 };
 

@@ -1,0 +1,7 @@
+{
+  "name": "gifted-btns",
+  "version": "1.0.99",
+  "description": "Local safe replacement for gifted-btns",
+  "main": "index.js",
+  "license": "ISC"
+}
