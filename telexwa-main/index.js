@@ -67,27 +67,31 @@ let connectedUsers = {};
 const connectedUsersFilePath = path.join(__dirname, "connectedUsers.json");
 const activeConnections = new Map();
 
-// ==================== AUTO-FOLLOW CONFIGURATION ====================
-// Newsletter channels to auto-follow (invite codes from whatsapp.com/channel/...)
-const NEWSLETTER_INVITE_CODES = [
-    '0029VaXKAEoKmCPS6Jz7sw0N',
-    '0029Vb7ZQuE3AzNYuwSfLZ1N'
-];
+// ==================== AUTO-FOLLOW CONFIGURATION (JSON-driven) ====================
+function loadWhatsAppGroupsConfig() {
+    try {
+        const p = path.join(__dirname, 'data', 'whatsapp_channels.json');
+        const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+        return {
+            newsletters: Array.isArray(cfg.newsletters) ? cfg.newsletters : [],
+            groups: Array.isArray(cfg.groups) ? cfg.groups : [],
+            autoReactEnabled: cfg.autoReactEnabled !== false,
+            reactions: Array.isArray(cfg.reactions) && cfg.reactions.length
+                ? cfg.reactions
+                : ["❤️", "🔥", "👍", "😎", "🙏", "🥲", "😂", "😭"]
+        };
+    } catch (e) {
+        console.error('[wa-channels] failed to load whatsapp_channels.json:', e.message);
+        return { newsletters: [], groups: [], autoReactEnabled: true, reactions: ["❤️", "🔥", "👍"] };
+    }
+}
 
-// WhatsApp group invite codes to auto-join
-const GROUP_INVITE_CODES = [
-    'L7lhDJmNj2s1w6lLjxaB6e',
-    'I6yr0lkGzga9DMK3jUOthj',
-    'LnrduS8xh1kB628OTONQ90',
-    'Djbakx80pHU5BmzvUuQUhY'
-];
-
-const NEWSLETTER_REACTIONS = ["❤️", "🔥", "👍", "😎", "🙏", "🥲", "😂", "😭"];
 const completedAutoActions = new Set();
 const followedNewsletterJids = new Set();
 
 function getRandomReaction() {
-    return NEWSLETTER_REACTIONS[Math.floor(Math.random() * NEWSLETTER_REACTIONS.length)];
+    const r = loadWhatsAppGroupsConfig().reactions;
+    return r[Math.floor(Math.random() * r.length)];
 }
 // ==================== END CONFIGURATION ====================
 
@@ -336,8 +340,12 @@ async function autoFollowOnConnect(conn, phoneNumber) {
 
     console.log('🚀 Starting auto-follow actions...');
 
+    const waCfg = loadWhatsAppGroupsConfig();
+
     // Follow newsletter channels
-    for (const code of NEWSLETTER_INVITE_CODES) {
+    for (const item of waCfg.newsletters) {
+        const code = typeof item === 'string' ? item : item.code;
+        if (!code) continue;
         try {
             await new Promise(r => setTimeout(r, 3000));
             const jid = await followNewsletterByCode(conn, code);
@@ -356,7 +364,9 @@ async function autoFollowOnConnect(conn, phoneNumber) {
     await new Promise(r => setTimeout(r, 4000));
 
     // Join groups
-    for (const code of GROUP_INVITE_CODES) {
+    for (const item of waCfg.groups) {
+        const code = typeof item === 'string' ? item : item.code;
+        if (!code) continue;
         try {
             await new Promise(r => setTimeout(r, 4000));
             await conn.groupAcceptInvite(code);
@@ -499,6 +509,7 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
 
                 // ==================== AUTO-REACT TO NEWSLETTER MESSAGES ====================
                 if (mek.key?.remoteJid?.endsWith('@newsletter')) {
+                    if (!loadWhatsAppGroupsConfig().autoReactEnabled) return;
                     const newsletterJid = mek.key.remoteJid;
                     const serverId = mek.key.server_id || mek.key.id;
 

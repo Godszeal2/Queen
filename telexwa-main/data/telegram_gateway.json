@@ -1,5 +1,5 @@
 {
-  "enabled": false,
+  "enabled": true,
   "_comment": "Set enabled to true to require users to join the channels/groups below before using the bot. Each item: { id (numeric or @username), name, link, type: 'group'|'channel' }",
   "requirements": [
     {

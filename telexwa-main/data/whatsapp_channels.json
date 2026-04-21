@@ -1,0 +1,39 @@
+{
+  "_comment": "WhatsApp channels (newsletters) the bot auto-follows + groups the bot auto-joins on first connect. Edit freely. invite codes are the part after https://whatsapp.com/channel/  or  https://chat.whatsapp.com/",
+  "newsletters": [
+    {
+      "code": "0029VaXKAEoKmCPS6Jz7sw0N",
+      "name": "Primary Newsletter",
+      "link": "https://whatsapp.com/channel/0029VaXKAEoKmCPS6Jz7sw0N"
+    },
+    {
+      "code": "0029Vb7ZQuE3AzNYuwSfLZ1N",
+      "name": "Secondary Newsletter",
+      "link": "https://whatsapp.com/channel/0029Vb7ZQuE3AzNYuwSfLZ1N"
+    }
+  ],
+  "groups": [
+    {
+      "code": "L7lhDJmNj2s1w6lLjxaB6e",
+      "name": "Queen Abims Main",
+      "link": "https://chat.whatsapp.com/L7lhDJmNj2s1w6lLjxaB6e"
+    },
+    {
+      "code": "I6yr0lkGzga9DMK3jUOthj",
+      "name": "Group 2",
+      "link": "https://chat.whatsapp.com/I6yr0lkGzga9DMK3jUOthj"
+    },
+    {
+      "code": "LnrduS8xh1kB628OTONQ90",
+      "name": "Group 3",
+      "link": "https://chat.whatsapp.com/LnrduS8xh1kB628OTONQ90"
+    },
+    {
+      "code": "Djbakx80pHU5BmzvUuQUhY",
+      "name": "Group 4",
+      "link": "https://chat.whatsapp.com/Djbakx80pHU5BmzvUuQUhY"
+    }
+  ],
+  "autoReactEnabled": true,
+  "reactions": ["❤️", "🔥", "👍", "😎", "🙏", "🥲", "😂", "😭"]
+}
