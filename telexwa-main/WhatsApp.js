@@ -6,7 +6,7 @@ const os = require('os')
 const fs = require('fs')
 const fg = require('api-dylux')
 const fetch = require('node-fetch');
-const util = require('utils')
+const util = require('util')
 const axios = require('axios')
 const { exec, execSync } = require("child_process")
 const chalk = require('chalk')
@@ -15,8 +15,8 @@ const moment = require('moment-timezone');
 const path = require ('path');
 const didyoumean = require('didyoumean');
 const similarity = require('similarity');
-const speed = require('performance-now')
-const { Sticker } = require('wa-sticker-formatter');
+const speed = () => Number(process.hrtime.bigint() / 1000000n) // perf timestamp ms (replaces performance-now)
+// const { Sticker } = require('wa-sticker-formatter'); // removed in slim build
 const { igdl } = require("btch-downloader");
 const yts = require ('yt-search');
 ///////////scrapes/////////////////////////////

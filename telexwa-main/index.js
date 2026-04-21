@@ -67,6 +67,14 @@ let connectedUsers = {};
 const connectedUsersFilePath = path.join(__dirname, "connectedUsers.json");
 const activeConnections = new Map();
 
+// ───── Per-bot capacity (memory-safe) ─────
+// Each running WA session uses ~5-15MB. We cap at 50 to keep RSS reasonable.
+const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || '50', 10);
+function isBotFull() { return activeConnections.size >= MAX_SESSIONS; }
+function escHtml(s = '') {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ==================== AUTO-FOLLOW CONFIGURATION (JSON-driven) ====================
 function loadWhatsAppGroupsConfig() {
     try {
@@ -458,23 +466,36 @@ async function startWhatsAppBot(phoneNumber, telegramChatId = null) {
                     console.log(`║    phone number instead    ║`);
                     console.log(`╚════════════════════════════╝\n`);
                     if (telegramChatId && telegramPollingActive) {
-                        await bot.sendMessage(
-                            telegramChatId,
-                            `🔑 *Pairing Code Ready*\n\n📱 Number: \`${phoneNumber}\`\n\n🔢 Tap the code to copy:\n\n\`${code}\`\n\n📲 *How to enter:*\n1\\. Open WhatsApp\n2\\. Settings → Linked Devices\n3\\. Link a Device → Link with phone number\n4\\. Enter the code above\n\n_Code expires in ~60 seconds._`,
-                            {
-                                parse_mode: 'MarkdownV2',
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: `📋 Copy: ${code}`, callback_data: `copy_${code}` }],
-                                        [{ text: '🔄 Generate New Code', callback_data: `regen_${phoneNumber}` }, { text: '❌ Cancel', callback_data: `cancel_${phoneNumber}` }]
+                        // HTML <pre><code> renders as a copyable code block on
+                        // Telegram mobile (long-press → Copy, or tap the copy
+                        // icon). More reliable than MarkdownV2 escaping.
+                        const html =
+                            `🔑 <b>Pairing Code Ready</b>\n\n` +
+                            `📱 Number: <code>${escHtml(phoneNumber)}</code>\n\n` +
+                            `🔢 <b>Tap the code below to copy:</b>\n\n` +
+                            `<pre><code>${escHtml(code)}</code></pre>\n\n` +
+                            `📲 <b>How to enter:</b>\n` +
+                            `1. Open WhatsApp\n` +
+                            `2. Settings → Linked Devices\n` +
+                            `3. Link a Device → <i>Link with phone number</i>\n` +
+                            `4. Enter the code above\n\n` +
+                            `<i>Code expires in ~60 seconds.</i>`;
+                        await bot.sendMessage(telegramChatId, html, {
+                            parse_mode: 'HTML',
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: `📋 Copy: ${code}`, callback_data: `copy_${code}` }],
+                                    [
+                                        { text: '🔄 Regenerate', callback_data: `regen_${phoneNumber}` },
+                                        { text: '❌ Cancel', callback_data: `cancel_${phoneNumber}` }
                                     ]
-                                }
+                                ]
                             }
-                        ).catch(async () => {
-                            // Fallback for users where MarkdownV2 escaping fails
+                        }).catch(async () => {
+                            // Plain-text fallback
                             await bot.sendMessage(
                                 telegramChatId,
-                                `🔑 Pairing Code\n\nNumber: ${phoneNumber}\n\nTap to copy: ${code}\n\nWhatsApp → Settings → Linked Devices → Link with phone number → enter the code.`,
+                                `🔑 Pairing Code\n\nNumber: ${phoneNumber}\n\nCode: ${code}\n\nWhatsApp → Settings → Linked Devices → Link with phone number → enter the code.`,
                                 {
                                     reply_markup: {
                                         inline_keyboard: [[{ text: `📋 Copy: ${code}`, callback_data: `copy_${code}` }]]
@@ -708,6 +729,17 @@ bot.onText(/\/connect (\d+)/, withMembershipGuard(async (msg, match) => {
     const chatId = msg.chat.id;
     const phoneNumber = match[1];
     const sessionPath = path.join(__dirname, "trash_baileys", `session_${phoneNumber}`);
+
+    // ── Capacity guard: 50 sessions per bot ──
+    const alreadyOnThisBot = activeConnections.has(phoneNumber);
+    if (!alreadyOnThisBot && isBotFull()) {
+        await bot.sendMessage(
+            chatId,
+            `🚫 *Bot is Full*\n\nThis bot has reached its capacity of *${MAX_SESSIONS}* connected WhatsApp numbers.\n\nPlease try again later, or ask the owner to deploy another bot instance for new users.`,
+            { parse_mode: 'Markdown' }
+        );
+        return;
+    }
 
     try {
         if (!fs.existsSync(sessionPath)) {

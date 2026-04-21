@@ -1,33 +1,27 @@
-const gTTS = require('gtts');
-const fs = require('fs');
-const path = require('path');
+// API-based TTS — no gTTS package required. Streams from translate.google.com
+const axios = require('axios');
 
 const LANG_CODES = {
-    en: 'en', english: 'en',
-    fr: 'fr', french: 'fr',
-    es: 'es', spanish: 'es',
-    de: 'de', german: 'de',
-    it: 'it', italian: 'it',
-    pt: 'pt', portuguese: 'pt',
-    ar: 'ar', arabic: 'ar',
-    hi: 'hi', hindi: 'hi',
-    zh: 'zh', chinese: 'zh',
-    ja: 'ja', japanese: 'ja',
-    ko: 'ko', korean: 'ko',
-    yo: 'yo', yoruba: 'yo',
-    ig: 'ig', igbo: 'ig',
-    ha: 'ha', hausa: 'ha',
-    sw: 'sw', swahili: 'sw'
+    en: 'en', english: 'en', fr: 'fr', french: 'fr', es: 'es', spanish: 'es',
+    de: 'de', german: 'de', it: 'it', italian: 'it', pt: 'pt', portuguese: 'pt',
+    ar: 'ar', arabic: 'ar', hi: 'hi', hindi: 'hi', zh: 'zh', chinese: 'zh',
+    ja: 'ja', japanese: 'ja', ko: 'ko', korean: 'ko', yo: 'yo', yoruba: 'yo',
+    ig: 'ig', igbo: 'ig', ha: 'ha', hausa: 'ha', sw: 'sw', swahili: 'sw',
+    ru: 'ru', russian: 'ru', tr: 'tr', turkish: 'tr', nl: 'nl', dutch: 'nl'
 };
+
+function googleTtsUrl(text, lang) {
+    const q = encodeURIComponent(text.slice(0, 200));
+    return `https://translate.google.com/translate_tts?ie=UTF-8&q=${q}&tl=${lang}&client=tw-ob`;
+}
 
 let trashplug = async (m, { trashcore, reply, text, args }) => {
     if (!text) {
-        return reply(`🔊 *Text-to-Speech (TTS)*\n\n*Usage:* .tts <text>\n_or_ .tts <lang> <text>\n\n*Supported langs:* en, fr, es, de, it, pt, ar, hi, yo, ig, ha, sw, zh, ja, ko\n\n*Examples:*\n┃━ ᯬ .tts Hello world\n┃━ ᯬ .tts yo Ẹ káàárọ̀\n┃━ ᯬ .tts fr Bonjour le monde`);
+        return reply(`🔊 *Text-to-Speech*\n\nUsage: \`.tts <text>\`  or  \`.tts <lang> <text>\`\n\nLangs: en, fr, es, de, it, pt, ar, hi, yo, ig, ha, sw, zh, ja, ko, ru, tr, nl\n\nExample: \`.tts yo Ẹ káàárọ̀\``);
     }
 
     let lang = 'en';
     let ttsText = text;
-
     if (args.length >= 2) {
         const possibleLang = (args[0] || '').toLowerCase();
         if (LANG_CODES[possibleLang]) {
@@ -36,34 +30,22 @@ let trashplug = async (m, { trashcore, reply, text, args }) => {
         }
     }
 
-    if (!ttsText.trim()) return reply('❌ Please provide some text to convert.');
-
-    const tmpDir = path.join(process.cwd(), 'tmp');
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-    const fileName = path.join(tmpDir, `tts_${Date.now()}.mp3`);
+    if (!ttsText.trim()) return reply('❌ Provide text to convert.');
 
     try {
-        await reply(`🔊 *Generating voice for:*\n_"${ttsText.substring(0, 80)}..."_`);
-
-        await new Promise((resolve, reject) => {
-            const gtts = new gTTS(ttsText, lang);
-            gtts.save(fileName, (err) => err ? reject(err) : resolve());
+        const res = await axios.get(googleTtsUrl(ttsText, lang), {
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 15000
         });
-
         await trashcore.sendMessage(m.chat, {
-            audio: fs.readFileSync(fileName),
+            audio: Buffer.from(res.data),
             mimetype: 'audio/mpeg',
             ptt: false
         }, { quoted: m });
-
-        setTimeout(() => {
-            try { if (fs.existsSync(fileName)) fs.unlinkSync(fileName); } catch {}
-        }, 5000);
-
     } catch (err) {
-        console.error('[TTS] Error:', err);
-        reply(`❌ *TTS failed.* Check the text/language and try again.\n\n_Error: ${err.message}_`);
+        console.error('[tts] failed:', err?.message || err);
+        await reply(`❌ TTS failed. Try shorter text or another language.`);
     }
 };
 

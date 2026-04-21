@@ -1,94 +1,58 @@
-const { downloadMediaMessage, downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const webp = require('node-webpmux');
-const crypto = require('crypto');
+// API-based sticker maker — no ffmpeg / wa-sticker-formatter / sharp / jimp.
+// Uses giftedtech sticker API (image -> webp sticker). Falls back to sending the
+// raw image as a sticker via Baileys' built-in webp wrapper if the API is down.
+const axios = require('axios');
+const FormData = require('form-data').default || require('form-data');
 
-async function getTargetMessage(m) {
-    if (m.quoted?.message) {
-        return {
-            key: {
-                remoteJid: m.chat,
-                id: m.quoted.key?.id || m.quoted.id,
-                participant: m.quoted.key?.participant || m.quoted.sender
-            },
-            message: m.quoted.message
-        };
-    }
-    return m;
+async function downloadQuoted(m, trashcore) {
+    const target = m.quoted ? m.quoted : m;
+    const msg = target.message || m.message || {};
+    const media = msg.imageMessage || msg.videoMessage || msg.documentMessage;
+    if (!media) return null;
+    try {
+        const buf = await target.download();
+        if (buf) return { buffer: buf, mime: media.mimetype || '' };
+    } catch {}
+    return null;
 }
 
 let trashplug = async (m, { trashcore, reply }) => {
-    const targetMessage = await getTargetMessage(m);
-    const msg = targetMessage.message || {};
-    const mediaMessage = msg.imageMessage || msg.videoMessage || msg.documentMessage ||
-        m.message?.imageMessage || m.message?.videoMessage;
+    const file = await downloadQuoted(m, trashcore);
+    if (!file) return reply('❌ Reply to (or send) an image/video/gif with `.sticker`');
 
-    if (!mediaMessage) {
-        return reply('❌ *Please reply to an image or video with .sticker*\n\n_Or send an image/video with .sticker as caption._');
-    }
+    await reply('⏳ Creating sticker...');
 
+    // 1) Try sticker maker API (handles image+video+gif → webp)
     try {
-        await reply('⏳ *Creating sticker...*');
-
-        const mediaBuffer = await downloadMediaMessage(targetMessage, 'buffer', {}, {
-            logger: undefined,
-            reuploadRequest: trashcore.updateMediaMessage
+        const fd = new FormData();
+        const filename = file.mime.includes('video') ? 'in.mp4' : 'in.jpg';
+        fd.append('file', file.buffer, filename);
+        const res = await axios.post('https://api.giftedtech.web.id/api/maker/sticker?apikey=gifted', fd, {
+            headers: fd.getHeaders ? fd.getHeaders() : {},
+            responseType: 'arraybuffer',
+            timeout: 30000
         });
-
-        if (!mediaBuffer) return reply('❌ Failed to download media. Try again.');
-
-        const tmpDir = path.join(process.cwd(), 'tmp');
-        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-        const tempInput = path.join(tmpDir, `stkIn_${Date.now()}`);
-        const tempOutput = path.join(tmpDir, `stkOut_${Date.now()}.webp`);
-
-        fs.writeFileSync(tempInput, mediaBuffer);
-
-        const isAnimated = mediaMessage.mimetype?.includes('gif') ||
-            mediaMessage.mimetype?.includes('video') ||
-            (mediaMessage.seconds && mediaMessage.seconds > 0);
-
-        const ffmpegCmd = isAnimated
-            ? `ffmpeg -i "${tempInput}" -vf "scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -loop 0 -vsync 0 -pix_fmt yuva420p -quality 70 "${tempOutput}"`
-            : `ffmpeg -i "${tempInput}" -vf "scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000" -c:v libwebp -preset default -pix_fmt yuva420p -quality 75 "${tempOutput}"`;
-
-        await new Promise((resolve, reject) => {
-            exec(ffmpegCmd, (err) => err ? reject(err) : resolve());
-        });
-
-        const webpBuffer = fs.readFileSync(tempOutput);
-        const img = new webp.Image();
-        await img.load(webpBuffer);
-
-        const meta = {
-            'sticker-pack-id': crypto.randomBytes(32).toString('hex'),
-            'sticker-pack-name': '𝗤𝘂𝗲𝗲𝗻 𝗔𝗯𝗶𝗺𝘀 👑',
-            'sticker-pack-publisher': "𝙂𝙤𝙙'𝙨 𝙕𝙚𝙖𝙡 †",
-            'emojis': ['👑']
-        };
-        const exifAttr = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
-        const jsonBuf = Buffer.from(JSON.stringify(meta), 'utf8');
-        const exif = Buffer.concat([exifAttr, jsonBuf]);
-        exif.writeUIntLE(jsonBuf.length, 14, 4);
-        img.exif = exif;
-        const finalBuf = await img.save(null);
-
-        await trashcore.sendMessage(m.chat, { sticker: finalBuf }, { quoted: m });
-
-        try { fs.unlinkSync(tempInput); } catch {}
-        try { fs.unlinkSync(tempOutput); } catch {}
-
-    } catch (err) {
-        console.error('[STICKER] Error:', err);
-        reply('❌ *Failed to create sticker.* Make sure you replied to an image/video.');
+        if (res.data && res.data.length > 200) {
+            await trashcore.sendMessage(m.chat, { sticker: Buffer.from(res.data) }, { quoted: m });
+            return;
+        }
+    } catch (e) {
+        console.error('[sticker] api1 failed:', e?.message || e);
     }
+
+    // 2) Direct send (Baileys auto-converts image to webp on supported builds)
+    try {
+        await trashcore.sendMessage(m.chat, { sticker: file.buffer }, { quoted: m });
+        return;
+    } catch (e) {
+        console.error('[sticker] direct send failed:', e?.message || e);
+    }
+
+    await reply('❌ Sticker maker is unavailable right now. Try again shortly.');
 };
 
 trashplug.help = ['sticker'];
 trashplug.tags = ['tools'];
-trashplug.command = ['sticker', 's'];
+trashplug.command = ['sticker', 's', 'stiker'];
 
 module.exports = trashplug;
