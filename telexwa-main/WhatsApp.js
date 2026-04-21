@@ -28,6 +28,7 @@ const {
 } = require('./library/scrapes/uploader');
 ///////////database access/////////////////
 const { addPremiumUser, delPremiumUser } = require("./library/lib/premiun");
+const botSettings = require("./library/lib/settings");
 /////////exports////////////////////////////////
 module.exports = async (trashcore, m) => {
 try {
@@ -37,9 +38,12 @@ var body = (m.mtype === 'interactiveResponseMessage') ? JSON.parse(m.message.int
 const { smsg, fetchJson, getBuffer, fetchBuffer, getGroupAdmins, TelegraPh, isUrl, hitungmundur, sleep, clockString, checkBandwidth, runtime, tanggal, getRandom } = require('./library/lib/function')
 // Main Setting (Admin And Prefix )///////
 const budy = (typeof m.text === 'string') ? m.text : '';
-const prefixRegex = /^[°zZ#$@*+,.?=''():√%!¢£¥€π¤ΠΦ_&><`™©®Δ^βα~¦|/\\©^]/;
 const normalizedBody = typeof body === 'string' ? body : '';
-const prefix = prefixRegex.test(normalizedBody) ? normalizedBody.match(prefixRegex)[0] : '.';
+const settings = botSettings.loadSettings();
+const configuredPrefix = settings.prefix || '.';
+const escapedPrefix = configuredPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const prefixRegex = new RegExp(`^(${escapedPrefix}|[#$@*+,.?='():%!&><~|/\\\\^])`);
+const prefix = prefixRegex.test(normalizedBody) ? normalizedBody.match(prefixRegex)[0] : configuredPrefix;
 const isCmd = normalizedBody.startsWith(prefix);
 const command = isCmd ? normalizedBody.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
 const args = normalizedBody.trim().split(/ +/).slice(1)
@@ -69,26 +73,42 @@ console.log(chalk.black(chalk.bgWhite(!command ? '[ MESSAGE ]' : '[ COMMAND ]'))
 /////////quoted functions//////////////////
 const fkontak = { key: {fromMe: false,participant: `0@s.whatsapp.net`, ...(from ? { remoteJid: "status@broadcast" } : {}) }, message: { 'contactMessage': { 'displayName': `🩸⃟‣‣Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑`, 'vcard': `BEGIN:VCARD\nVERSION:3.0\nN:XL;Vinzx,;;;\nFN:${pushname},\nitem1.TEL;waid=${sender.split('@')[0]}:${sender.split('@')[0]}\nitem1.X-ABLabel:Ponsel\nEND:VCARD`, 'jpegThumbnail': { url: 'https://files.catbox.moe/s0yc4f.jpg' }}}}
 ////////////////Reply Message////////////////
-const replypic = fs.readFileSync('./library/media/connect.jpg');
-const reply = async (teks) => {
-try {
-    return await trashcore.sendMessage(m.chat, { text: teks, contextInfo: {
-        "externalAdReply": {
-            "showAdAttribution": true,
-            "title": "🩸⃟‣Qᴜᴇᴇɴ ᴀʙɪᴍꜱ 👑",
-            "containsAutoReply": true,
-            "mediaType": 1,
-            "thumbnail": replypic,
-            "sourceUrl": "https://github.com/AiOfLautech/God-s-Zeal-Xmd"
-        }
-    }}, { quoted: m });
-} catch {
-    return trashcore.sendMessage(m.chat, { text: teks }, { quoted: m }).catch((err) => {
-        console.error("Reply send failed:", err);
+// Newsletter chats are read-only — bot cannot send messages there.
+const isNewsletterChat = typeof m.chat === 'string' && m.chat.endsWith('@newsletter');
+const replyTheme = botSettings.getTheme(settings.layout);
+const replyAccent = (replyTheme && replyTheme.replyAccent) ? replyTheme.replyAccent : '👑';
+
+async function safeSend(jid, content, opts = {}) {
+    if (!jid) {
+        console.error('[reply] missing jid');
         return null;
-    });
+    }
+    if (typeof jid === 'string' && jid.endsWith('@newsletter')) {
+        console.log(`[reply] skipping send to read-only newsletter chat: ${jid}`);
+        return null;
+    }
+    try {
+        return await trashcore.sendMessage(jid, content, opts);
+    } catch (err1) {
+        console.error('[reply] primary send failed:', err1?.message || err1);
+        // Retry without the quoted reference (often the cause of failures
+        // when the original message metadata is incomplete/from newsletters)
+        try {
+            const cleanOpts = { ...opts };
+            delete cleanOpts.quoted;
+            return await trashcore.sendMessage(jid, content, cleanOpts);
+        } catch (err2) {
+            console.error('[reply] retry without quote also failed:', err2?.message || err2);
+            return null;
+        }
+    }
 }
-}
+
+const reply = async (teks) => {
+    if (teks === undefined || teks === null) teks = '';
+    const text = String(teks);
+    return safeSend(m.chat, { text }, { quoted: m });
+};
 
 const trashreply = async (teks) => {
 return trashcore.sendMessage(m.chat, { text : teks }, { quoted : m }).catch((err) => {
@@ -202,7 +222,7 @@ return plugins
 //========= [ COMMANDS PLUGINS ] =================================================
 let pluginsDisable = true
 const plugins = await pluginsLoader(path.resolve(__dirname, "trashplugs"))
-const trashdex = { trashown, reply, replymenu, command, isCmd, text, args, botNumber, prefix, fetchJson, example, totalfeature, trashcore, m, q, sleep, fkontak, menu, addPremiumUser, delPremiumUser, isPremium, trashpic, trashdebug, isAdmins, groupAdmins, pushname, isBotAdmins }
+const trashdex = { trashown, reply, replymenu, safeSend, command, isCmd, text, args, botNumber, prefix, fetchJson, example, totalfeature, trashcore, m, q, sleep, fkontak, menu, addPremiumUser, delPremiumUser, isPremium, trashpic, trashdebug, isAdmins, groupAdmins, pushname, isBotAdmins, settings, botSettings, replyTheme, replyAccent }
 for (let plugin of plugins) {
 if (!plugin || typeof plugin !== "function" || !Array.isArray(plugin.command)) {
 continue

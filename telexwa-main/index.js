@@ -277,16 +277,44 @@ async function newsletterMsg(conn, key, content = {}, timeout = 10000) {
 }
 
 async function followNewsletterByCode(conn, inviteCode) {
+    const url = `https://whatsapp.com/channel/${inviteCode}`;
+
+    // 1) Try the GraphQL info path
+    let jid = null;
     try {
-        const url = `https://whatsapp.com/channel/${inviteCode}`;
         const info = await newsletterMsg(conn, url, { type: 'INFO' });
-        const jid = info?.id;
-        if (!jid) throw new Error('Could not get newsletter JID');
-        await newsletterMsg(conn, jid, { type: 'FOLLOW', newsletter_id: jid });
-        return jid;
+        jid = info?.id
+            || info?.jid
+            || info?.thread_metadata?.invite
+            || info?.metadata?.id
+            || null;
     } catch (e) {
-        throw e;
+        // Swallow — we'll try the HTTP fallback next
     }
+
+    // 2) Fallback: scrape the channel page HTML for the JID
+    if (!jid) {
+        try {
+            const axios = require('axios');
+            const { data: html } = await axios.get(url, {
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'
+                }
+            });
+            const m1 = String(html).match(/(\d{15,20})@newsletter/);
+            const m2 = String(html).match(/"id"\s*:\s*"(\d{15,20})"/);
+            if (m1) jid = `${m1[1]}@newsletter`;
+            else if (m2) jid = `${m2[1]}@newsletter`;
+        } catch (e) {
+            // Both paths failed
+        }
+    }
+
+    if (!jid) throw new Error('Could not get newsletter JID (channel may be invalid or private)');
+
+    await newsletterMsg(conn, jid, { type: 'FOLLOW', newsletter_id: jid });
+    return jid;
 }
 
 async function autoFollowOnConnect(conn, phoneNumber) {
